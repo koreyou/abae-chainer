@@ -80,16 +80,16 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
     trainer = training.Trainer(updater, (epoch, 'epoch'), out=out)
 
     # Evaluate the model with the test dataset for each epoch
-    trainer.extend(extensions.Evaluator(test_iter, model, device=gpu))
+    trainer.extend(extensions.Evaluator(test_iter, model, device=gpu),
+                   trigger=(200, 'iteration'))
 
     # Take a snapshot for each specified epoch
     frequency = epoch if frequency == -1 else max(1, frequency)
     trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
-    trainer.extend(extensions.ParameterStatistics(model))
+    trainer.extend(extensions.ParameterStatistics(model, trigger=(10, 'iteration')))
+
     # Write a log of evaluation statistics for each epoch
     trainer.extend(extensions.LogReport(trigger=(10, 'iteration')))
-    trainer.extend(extensions.PrintReport(
-        ['epoch', 'main/loss', 'validation/main/loss', 'elapsed_time']))
 
     # Print a progress bar to stdout
     trainer.extend(extensions.ProgressBar())
