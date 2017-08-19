@@ -2,6 +2,8 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
+import os
+import json
 
 import chainer
 import dill  # This is for joblib to use dill. Do NOT delete it.
@@ -56,8 +58,11 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
 
     w2v, vocab, dataset, topic_vectors = prepare(word2vec, ntopics)
 
-    model = abae.model.ABAE(w2v, topic_vectors, fix_embedding=fix_embedding,
-                            orthogonality_penalty=orthogonality_penalty)
+    model = abae.model.ABAE(
+        w2v.shape[0], w2v.shape[1], ntopics,
+        fix_embedding=fix_embedding,
+        orthogonality_penalty=orthogonality_penalty)
+    model.initialize(w2v, topic_vectors)
     if gpu >= 0:
         # Make a specified GPU current
         chainer.cuda.get_device_from_id(gpu).use()
@@ -100,6 +105,11 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
 
     # Run the training
     trainer.run()
+
+    # Save final model (without trainer)
+    model.save(os.path.join(out, 'trained_model'))
+    with open(os.path.join(out, 'vocab.json'), 'wb') as fout:
+        json.dump(vocab, fout)
 
 
 if __name__ == '__main__':
