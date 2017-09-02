@@ -48,11 +48,15 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
 
     @memory.cache
     def prepare(word2vec_path, n_topics):
+        logging.info("Preparing data")
+
+        logging.info("Loading data")
         raw_data = list(abae.dataset.read_20news())
-
+        logging.info("Loading word embedding")
         w2v, vocab = abae.word_embedding.create_word_emebedding(word2vec_path, raw_data)
-
+        logging.info("Creating dataset")
         dataset = abae.dataset.create_dataset(raw_data, vocab)
+        logging.info("Initializing topics with k-means")
         topic_vectors = abae.topic_initializer.initialze_topics(w2v, n_topics)
         return w2v, vocab, dataset, topic_vectors
 
