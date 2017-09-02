@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.INFO)
               help='Number of images in each mini-batch')
 @click.option('--negative-samples', type=int, default=20,
               help='Number of images in each mini-batch')
-@click.option('--ntopics', '-n', type=int, default=14)
+@click.option('--ntopics', '-n', type=int, default=30)
 @click.option('--train_ratio', type=float, default=0.95,
               help='Number of data to be used for validation')
 @click.option('--lr', type=float, default=0.001, help='Learning rate')
