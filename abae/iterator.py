@@ -77,8 +77,8 @@ class NegativeSampleIterator(SerialIterator):
 
 
 def concat_examples(batch, device=None, padding=None):
-    x, x_len, ns, ns_len = chainer.dataset.convert.concat_examples(batch, device=device, padding=padding)
+    x, x_len, labels, ns, ns_len, _ = chainer.dataset.convert.concat_examples(batch, device=device, padding=padding)
     xp = chainer.cuda.get_array_module(x)
     x = x[:, :xp.max(x_len)]
     ns = ns[:, :, :xp.max(ns_len)]
-    return tuple((x, x_len, ns, ns_len))
+    return tuple((x, x_len, ns, ns_len, labels))

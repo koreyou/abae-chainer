@@ -89,8 +89,14 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
     trainer = training.Trainer(updater, (epoch, 'epoch'), out=out)
 
     # Evaluate the model with the test dataset for each epoch
-    trainer.extend(extensions.Evaluator(test_iter, model, device=gpu),
-                   trigger=(200, 'iteration'))
+    trainer.extend(extensions.Evaluator(test_iter, model, device=gpu,
+                                        converter=abae.iterator.concat_examples),
+                   trigger=(10, 'iteration'))
+    trainer.extend(
+        abae.evaluator.TopicMatchEvaluator(
+            test_iter, model, device=gpu,converter=abae.iterator.concat_examples
+        ),
+        trigger=(10, 'iteration'))
 
     # Take a snapshot for each specified epoch
     frequency = epoch if frequency == -1 else max(1, frequency)

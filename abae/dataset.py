@@ -11,6 +11,8 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
+from operator import itemgetter
+
 
 def _pad_create(arr, max_len):
     s = min(max(map(len, arr)), max_len)
@@ -24,24 +26,27 @@ def _pad_create(arr, max_len):
 
 def create_dataset(data_iterator, vocab, size=-1, max_tokens=10000):
     texts = []
-    for text in data_iterator:
+    labels = []
+    for text, l in data_iterator:
         t = [vocab[v] for v in text if v in vocab]
         if len(t) > 0:
             texts.append(t)
+            labels.append(l)
     texts, texts_len = _pad_create(texts, max_tokens)
     if size > 0:
         # Sample data AFTER all data has been loaded. This is because
         # There might be bias in data ordering.
         ind = np.random.permutation(len(texts))[:size]
-        return TupleDataset([texts[i] for i in ind], [texts_len[i] for i in ind])
+        return TupleDataset(
+            [texts[i] for i in ind], [texts_len[i] for i in ind],
+            [labels[i] for i in ind])
     else:
-        return TupleDataset(texts, texts_len)
-
+        return TupleDataset(texts, texts_len, labels)
 
 def aggregate_vocabs(data_iterator, min_tf, min_df, max_df):
     vectorizer = CountVectorizer(
         analyzer=lambda x: x, max_df=max_df, min_df=min_df)
-    vectorizer.fit(data_iterator)
+    vectorizer.fit(map(itemgetter(0), data_iterator))
 
     return set(vectorizer.vocabulary_.keys())
 
@@ -61,13 +66,14 @@ def read_dataset(paths):
 
 
 def read_20news():
-    for text in fetch_20newsgroups(subset='train', remove=('headers', 'footers', 'quotes')).data:
+    X = fetch_20newsgroups(subset='train', remove=('headers', 'footers', 'quotes'))
+    for text, t in zip(X.data, X.target):
         text = text.replace('\n', ' ')
         for s in sent_tokenize(text):
             if len(s) > 1000:
                 # Just remove very long sentence because I know it only contains junk
                 continue
             words = word_tokenize(s)
-            yield [w for w in words if w not in _stop_words]
+            yield [w for w in words if w not in _stop_words], t
 
 

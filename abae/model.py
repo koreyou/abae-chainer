@@ -121,7 +121,7 @@ class ABAE(chainer.Chain):
         self.T.copydata(chainer.Variable(initial_t))
         self.sent_emb.initialize(word_emb)
 
-    def __call__(self, x, x_length, ns, ns_length):
+    def __call__(self, x, x_length, ns, ns_length, label):
         """
 
         Args:
@@ -134,6 +134,7 @@ class ABAE(chainer.Chain):
                 n_negative_samples, tokens)
             ns_length (numpy.ndarray or cupy.ndarray): number of tokens in each
                 negative sample in shape ``(batchsize, n_negative_samples)``
+            label: Ignored
 
         Returns:
             chainer.Variable:
@@ -171,6 +172,26 @@ class ABAE(chainer.Chain):
         loss = loss_pred + loss_reg
         reporter.report({'loss': loss}, self)
         return loss
+
+    def predict_topic(self, x, x_length, ns, ns_length, label):
+        """
+
+        Args:
+            x (numpy.ndarray or cupy.ndarray): sequences of vocabulary indices
+                in shape (batchsize, tokens)
+            x_length (numpy.ndarray or cupy.ndarray): number of tokens in each
+                batch index of ``x``
+            ns: Ignored
+            ns_length: Ignored
+            label (numpy.ndarray or cupy.ndarray): Target topic label.
+                It will be directly returned for later evalution
+
+        Returns:
+            chainer.Variable:
+
+        """
+        z = self.sent_emb(x, x_length)
+        return self.pred_topic(z), label
 
     def save(self, filename, compression=True):
         """Saves an object to the file in NPZ format.
