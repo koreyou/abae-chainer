@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 import json
+import itertools
 
 import chainer
 import dill  # This is for joblib to use dill. Do NOT delete it.
@@ -51,16 +52,19 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
         logging.info("Preparing data")
 
         logging.info("Loading data")
-        raw_data = list(abae.dataset.read_20news())
+        train_texts, train_labels = abae.dataset.read_20news('train')
+        test_texts, test_labels = abae.dataset.read_20news('test')
         logging.info("Loading word embedding")
-        w2v, vocab = abae.word_embedding.create_word_emebedding(word2vec_path, raw_data)
+        w2v, vocab = abae.word_embedding.create_word_emebedding(
+            word2vec_path, itertools.chain(train_texts, test_texts))
         logging.info("Creating dataset")
-        dataset = abae.dataset.create_dataset(raw_data, vocab)
+        train = abae.dataset.create_dataset(train_texts, train_labels, vocab)
+        test = abae.dataset.create_dataset(test_texts, test_labels, vocab)
         logging.info("Initializing topics with k-means")
         topic_vectors = abae.topic_initializer.initialze_topics(w2v, n_topics)
-        return w2v, vocab, dataset, topic_vectors
+        return w2v, vocab, train, test, topic_vectors
 
-    w2v, vocab, dataset, topic_vectors = prepare(word2vec, ntopics)
+    w2v, vocab, train, test, topic_vectors = prepare(word2vec, ntopics)
 
     model = abae.model.ABAE(
         w2v.shape[0], w2v.shape[1], ntopics,
@@ -76,27 +80,29 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
     optimizer = chainer.optimizers.Adam(alpha=lr)
     optimizer.setup(model)
 
-    train, test = chainer.datasets.split_dataset_random(dataset, int(len(dataset) * train_ratio))
-    logging.info("train: {},  test: {}".format(len(train), len(test)))
-
     train_iter = abae.iterator.NegativeSampleIterator(train, batchsize, negative_samples)
-    test_iter = abae.iterator.NegativeSampleIterator(
-        test, batchsize, negative_samples, repeat=False, shuffle=False)
 
     # Set up a trainer
     updater = training.StandardUpdater(
         train_iter, optimizer, device=gpu, converter=abae.iterator.concat_examples)
     trainer = training.Trainer(updater, (epoch, 'epoch'), out=out)
 
-    # Evaluate the model with the test dataset for each epoch
-    trainer.extend(extensions.Evaluator(test_iter, model, device=gpu,
-                                        converter=abae.iterator.concat_examples),
-                   trigger=(10, 'iteration'))
-    trainer.extend(
-        abae.evaluator.TopicMatchEvaluator(
-            test_iter, model, device=gpu,converter=abae.iterator.concat_examples
-        ),
-        trigger=(10, 'iteration'))
+    if test is not None:
+        logging.info("train: {},  test: {}".format(len(train), len(test)))
+        # Evaluate the model with the test dataset for each epoch
+        test_iter = abae.iterator.NegativeSampleIterator(
+            test, batchsize, negative_samples, repeat=False, shuffle=False)
+        trainer.extend(extensions.Evaluator(test_iter, model, device=gpu,
+                                            converter=abae.iterator.concat_examples),
+                       trigger=(10, 'iteration'))
+        trainer.extend(
+            abae.evaluator.TopicMatchEvaluator(
+                test_iter, model, device=gpu,
+                converter=abae.iterator.concat_examples
+            ),
+            trigger=(10, 'iteration'))
+    else:
+        logging.info("train: {}".format(len(train)))
 
     # Take a snapshot for each specified epoch
     frequency = epoch if frequency == -1 else max(1, frequency)

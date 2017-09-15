@@ -24,29 +24,29 @@ def _pad_create(arr, max_len):
     return ret, length
 
 
-def create_dataset(data_iterator, vocab, size=-1, max_tokens=10000):
-    texts = []
-    labels = []
-    for text, l in data_iterator:
+def create_dataset(texts, labels, vocab, size=-1, max_tokens=10000):
+    texts_new = []
+    labels_new = []
+    for text, l in zip(texts, labels):
         t = [vocab[v] for v in text if v in vocab]
         if len(t) > 0:
-            texts.append(t)
-            labels.append(l)
-    texts, texts_len = _pad_create(texts, max_tokens)
+            texts_new.append(t)
+            labels_new.append(l)
+    texts_new, texts_len = _pad_create(texts_new, max_tokens)
     if size > 0:
         # Sample data AFTER all data has been loaded. This is because
         # There might be bias in data ordering.
-        ind = np.random.permutation(len(texts))[:size]
+        ind = np.random.permutation(len(texts_new))[:size]
         return TupleDataset(
-            [texts[i] for i in ind], [texts_len[i] for i in ind],
-            [labels[i] for i in ind])
+            [texts_new[i] for i in ind], [texts_len[i] for i in ind],
+            [labels_new[i] for i in ind])
     else:
-        return TupleDataset(texts, texts_len, labels)
+        return TupleDataset(texts_new, texts_len, labels_new)
 
-def aggregate_vocabs(data_iterator, min_tf, min_df, max_df):
+def aggregate_vocabs(texts, min_tf, min_df, max_df):
     vectorizer = CountVectorizer(
         analyzer=lambda x: x, max_df=max_df, min_df=min_df)
-    vectorizer.fit(map(itemgetter(0), data_iterator))
+    vectorizer.fit(texts)
 
     return set(vectorizer.vocabulary_.keys())
 
