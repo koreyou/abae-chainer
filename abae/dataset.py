@@ -122,7 +122,9 @@ def prepare_20news(word2vec_path, n_topics):
     logger.info("Initializing topics with k-means")
     topic_vectors = abae.topic_initializer.initialze_topics(w2v, n_topics)
 
-    return w2v, vocab, train, test, topic_vectors
+    label_dict = {i: k for i, k in
+                  enumerate(fetch_20newsgroups(subset='test').target_names)}
+    return w2v, vocab, train, test, topic_vectors, label_dict
 
 
 def prepare_beer_advocate(train_path, test_data_path, test_label_path,
@@ -156,7 +158,10 @@ def prepare_beer_advocate(train_path, test_data_path, test_label_path,
         test = None
     logger.info("Initializing topics with k-means")
     topic_vectors = abae.topic_initializer.initialze_topics(w2v, n_topics)
-    return w2v, vocab, train, test, topic_vectors
+
+    # Reverse label_dict
+    label_dict = {v: k for k, v in label_dict.iteritems()}
+    return w2v, vocab, train, test, topic_vectors, label_dict
 
 
 def read_beer_advocate_data(path):

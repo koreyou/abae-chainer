@@ -28,6 +28,8 @@ class TopicMatchEvaluator(extension.Extension):
             a dictionary of iterators. If this is just an iterator, the
             iterator is registered by the name ``'main'``.
         target: ``abae.ABAE`` object.
+        label_dict (dict or None):  Mapping from prediction index (int) to the
+            label (str)
         converter: Converter function to build input arrays.
             :func:`~chainer.dataset.concat_examples` is used by default.
         device: Device to which the training data is sent. Negative value
@@ -41,8 +43,8 @@ class TopicMatchEvaluator(extension.Extension):
     default_name = 'validation'
     priority = extension.PRIORITY_WRITER
 
-    def __init__(self, iterator, target, converter=convert.concat_examples,
-                 device=None):
+    def __init__(self, iterator, target, label_dict=None,
+                 converter=convert.concat_examples, device=None):
         if isinstance(iterator, iterator_module.Iterator):
             iterator = {'main': iterator}
         self._iterators = iterator
@@ -56,6 +58,7 @@ class TopicMatchEvaluator(extension.Extension):
 
         self.converter = converter
         self.device = device
+        self.label_dict = label_dict
 
     def get_iterator(self, name):
         """Returns the iterator of the given name."""
@@ -148,6 +151,10 @@ class TopicMatchEvaluator(extension.Extension):
             # best_j may NOT be defined if remaining preds are all zeros
             if best_j is not None:
                 preds_indices.remove(best_j)
-            results[prefix + 'f1_%d' % i] = best_f1
+            if self.label_dict is None:
+                name = 'f1_%d' % i
+            else:
+                name = 'f1_%s' % self.label_dict[i]
+            results[prefix + name] = best_f1
         results[prefix + 'macro_f1'] = np.average(results.values())
         return results

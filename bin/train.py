@@ -58,11 +58,11 @@ def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test
 
     if beer_train is None:
         logger.info('Using 20newsgroup dataset')
-        w2v, vocab, train, test, topic_vectors = \
+        w2v, vocab, train, test, topic_vectors, label_dict = \
             memory.cache(abae.dataset.prepare_20news)(word2vec, ntopics)
     else:
         logger.info('Using beer adovocate dataset.')
-        w2v, vocab, train, test, topic_vectors = \
+        w2v, vocab, train, test, topic_vectors, label_dict = \
             memory.cache(abae.dataset.prepare_beer_advocate)(
                 beer_train, beer_test, beer_labels, word2vec, ntopics)
 
@@ -97,13 +97,14 @@ def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test
                        trigger=(10, 'iteration'))
         trainer.extend(
             abae.evaluator.TopicMatchEvaluator(
-                test_iter, model, device=gpu,
+                test_iter, model, label_dict=label_dict, device=gpu,
                 converter=abae.iterator.concat_examples_ns
             ),
             trigger=(10, 'iteration'))
     else:
         logger.info("train: {}".format(len(train)))
 
+    logger.info("With labels: %s" % json.dumps(label_dict))
     # Take a snapshot for each specified epoch
     frequency = epoch if frequency == -1 else max(1, frequency)
     trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
