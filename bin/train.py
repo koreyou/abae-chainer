@@ -16,6 +16,7 @@ from chainer.training import extensions
 import abae
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -29,13 +30,17 @@ logging.basicConfig(level=logging.INFO)
               help='Directory to output the result and temporaly file')
 @click.option('--word2vec', required=True, type=click.Path(exists=True),
               help='Word2vec pretrained file path')
+@click.option('--beer-train', default=None, type=click.Path(exists=True),
+              help='Beer advocate train files')
+@click.option('--beer-labels', default=None, type=click.Path(exists=True),
+              help='Beer advocate test labels files')
+@click.option('--beer-test', default=None, type=click.Path(exists=True),
+              help='Beer advocate test files')
 @click.option('--batchsize', '-b', type=int, default=50,
               help='Number of images in each mini-batch')
 @click.option('--negative-samples', type=int, default=20,
               help='Number of images in each mini-batch')
 @click.option('--ntopics', '-n', type=int, default=30)
-@click.option('--train_ratio', type=float, default=0.95,
-              help='Number of data to be used for validation')
 @click.option('--lr', type=float, default=0.001, help='Learning rate')
 @click.option('--orthogonality_penalty', type=float, default=1.0,
               help='Orthogonality penalty coefficient lambda')
@@ -43,28 +48,23 @@ logging.basicConfig(level=logging.INFO)
               help='Fix word embedding during training')
 @click.option('--resume', '-r', default='',
               help='Resume the training from snapshot')
-def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
-        ntopics, train_ratio, lr, orthogonality_penalty, fix_embedding, resume):
+def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test,
+        batchsize, negative_samples, ntopics, lr, orthogonality_penalty,
+        fix_embedding, resume):
+    if (beer_labels is None) != (beer_test is None):
+        raise click.BadParameter(
+            "Both or neither beer-labels and beer-test can be specified")
     memory = Memory(cachedir=out, verbose=0)
 
-    @memory.cache
-    def prepare(word2vec_path, n_topics):
-        logging.info("Preparing data")
-
-        logging.info("Loading data")
-        train_texts, train_labels = abae.dataset.read_20news('train')
-        test_texts, test_labels = abae.dataset.read_20news('test')
-        logging.info("Loading word embedding")
-        w2v, vocab = abae.word_embedding.create_word_emebedding(
-            word2vec_path, itertools.chain(train_texts, test_texts))
-        logging.info("Creating dataset")
-        train = abae.dataset.create_dataset(train_texts, train_labels, vocab)
-        test = abae.dataset.create_dataset(test_texts, test_labels, vocab)
-        logging.info("Initializing topics with k-means")
-        topic_vectors = abae.topic_initializer.initialze_topics(w2v, n_topics)
-        return w2v, vocab, train, test, topic_vectors
-
-    w2v, vocab, train, test, topic_vectors = prepare(word2vec, ntopics)
+    if beer_train is None:
+        logger.info('Using 20newsgroup dataset')
+        w2v, vocab, train, test, topic_vectors = \
+            memory.cache(abae.dataset.prepare_20news)(word2vec, ntopics)
+    else:
+        logger.info('Using beer adovocate dataset.')
+        w2v, vocab, train, test, topic_vectors = \
+            memory.cache(abae.dataset.prepare_beer_advocate)(
+                beer_train, beer_test, beer_labels, word2vec, ntopics)
 
     model = abae.model.ABAE(
         w2v.shape[0], w2v.shape[1], ntopics,
@@ -84,25 +84,25 @@ def run(epoch, frequency, gpu, out, word2vec, batchsize, negative_samples,
 
     # Set up a trainer
     updater = training.StandardUpdater(
-        train_iter, optimizer, device=gpu, converter=abae.iterator.concat_examples)
+        train_iter, optimizer, device=gpu, converter=abae.iterator.concat_examples_ns)
     trainer = training.Trainer(updater, (epoch, 'epoch'), out=out)
 
     if test is not None:
-        logging.info("train: {},  test: {}".format(len(train), len(test)))
+        logger.info("train: {},  test: {}".format(len(train), len(test)))
         # Evaluate the model with the test dataset for each epoch
         test_iter = abae.iterator.NegativeSampleIterator(
             test, batchsize, negative_samples, repeat=False, shuffle=False)
         trainer.extend(extensions.Evaluator(test_iter, model, device=gpu,
-                                            converter=abae.iterator.concat_examples),
+                                            converter=abae.iterator.concat_examples_ns),
                        trigger=(10, 'iteration'))
         trainer.extend(
             abae.evaluator.TopicMatchEvaluator(
                 test_iter, model, device=gpu,
-                converter=abae.iterator.concat_examples
+                converter=abae.iterator.concat_examples_ns
             ),
             trigger=(10, 'iteration'))
     else:
-        logging.info("train: {}".format(len(train)))
+        logger.info("train: {}".format(len(train)))
 
     # Take a snapshot for each specified epoch
     frequency = epoch if frequency == -1 else max(1, frequency)
