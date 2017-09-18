@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function, \
 
 import itertools
 import logging
+import tempfile
 
 import nltk
 import numpy as np
@@ -19,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 def _pad_create(arr, max_len):
     s = min(max(map(len, arr)), max_len)
-    ret = np.ones((len(arr), s), dtype=np.int32) * -1
+    # let memmap take care of opened file
+    f = tempfile.TemporaryFile()
+    ret = np.memmap(f, shape=(len(arr), s), dtype=np.int32)
+    ret[:, :] = -1
     length = np.empty((len(arr), ), dtype=np.int32)
     for i, a in enumerate(arr):
         ret[i, :len(a)] = a
