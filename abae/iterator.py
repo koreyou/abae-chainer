@@ -76,9 +76,32 @@ class NegativeSampleIterator(SerialIterator):
         self.current_position_ns = 0
 
 
-def concat_examples(batch, device=None, padding=None):
-    x, x_len, labels, ns, ns_len, _ = chainer.dataset.convert.concat_examples(batch, device=device, padding=padding)
+def concat_examples_ns(batch, device=None, padding=None):
+    batch_concat = chainer.dataset.convert.concat_examples(
+        batch, device=device, padding=padding)
+    if len(batch_concat) == 6:
+        x, x_len, labels, ns, ns_len, _ = batch_concat
+    elif len(batch_concat) == 4:
+        x, x_len, ns, ns_len = batch_concat
+        labels = None
+    else:
+        raise ValueError("Wrong number of data in batch")
     xp = chainer.cuda.get_array_module(x)
     x = x[:, :xp.max(x_len)]
     ns = ns[:, :, :xp.max(ns_len)]
     return tuple((x, x_len, ns, ns_len, labels))
+
+
+def concat_examples(batch, device=None, padding=None):
+    batch = chainer.dataset.convert.concat_examples(
+        batch, device=device, padding=padding)
+    if len(batch) == 3:
+        x, x_len, labels = batch
+    elif len(batch) == 2:
+        x, x_len = batch
+        labels = None
+    else:
+        raise ValueError("Wrong number of data in batch")
+    xp = chainer.cuda.get_array_module(x)
+    x = x[:, :xp.max(x_len)]
+    return tuple((x, x_len, labels))
