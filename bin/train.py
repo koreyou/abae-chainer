@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 @click.option('--epoch', '-e', type=int, default=15,
               help='Number of sweeps over the dataset to train')
 @click.option('--frequency', '-f', type=int, default=-1,
-              help='Frequency of taking a snapshot')
+              help='Frequency of taking a snapshot (in iterations)')
 @click.option('--gpu', '-g', type=int, default=-1,
               help='GPU ID (negative value indicates CPU)')
 @click.option('--out', '-o', default='result',
@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
               help='Number of images in each mini-batch')
 @click.option('--negative-samples', type=int, default=20,
               help='Number of images in each mini-batch')
-@click.option('--ntopics', '-n', type=int, default=30)
+@click.option('--ntopics', '-n', type=int, default=30,
+              help='Number of topics to initialize on. Recommended n for beer data is 14.')
 @click.option('--lr', type=float, default=0.001, help='Learning rate')
 @click.option('--orthogonality_penalty', type=float, default=1.0,
               help='Orthogonality penalty coefficient lambda')
@@ -94,13 +95,13 @@ def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test
             test, batchsize, negative_samples, repeat=False, shuffle=False)
         trainer.extend(extensions.Evaluator(test_iter, model, device=gpu,
                                             converter=abae.iterator.concat_examples_ns),
-                       trigger=(10, 'iteration'))
+                       trigger=(500, 'iteration'))
         trainer.extend(
             abae.evaluator.TopicMatchEvaluator(
                 test_iter, model, label_dict=label_dict, device=gpu,
                 converter=abae.iterator.concat_examples_ns
             ),
-            trigger=(10, 'iteration'))
+            trigger=(500, 'iteration'))
     else:
         logger.info("train: {}".format(len(train)))
 
