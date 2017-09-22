@@ -7,6 +7,9 @@ import logging
 import tempfile
 
 import nltk
+nltk.download(info_or_id='stopwords')
+nltk.download(info_or_id='punkt')
+
 import numpy as np
 from chainer.datasets import TupleDataset
 from nltk.corpus import stopwords
@@ -75,8 +78,6 @@ def aggregate_vocabs(texts, min_tf, min_df, max_df):
 
 
 _stop_words = set(stopwords.words('english')) | {'.', ',', '?', '!', ':', '"', "'", '&', '>'}
-nltk.download(info_or_id='stopwords')
-nltk.download(info_or_id='punkt')
 
 
 def read_dataset(paths):
