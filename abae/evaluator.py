@@ -1,7 +1,6 @@
 import copy
 
 import numpy as np
-import six
 from chainer import configuration
 from chainer import cuda
 from chainer import function
@@ -9,7 +8,6 @@ from chainer import reporter as reporter_module
 from chainer.dataset import convert
 from chainer.dataset import iterator as iterator_module
 from chainer.training import extension
-from sklearn import metrics
 
 from abae.model import ABAE
 
@@ -19,9 +17,17 @@ class TopicMatchEvaluator(extension.Extension):
     """Trainer extension to evaluate models on a validation set.
 
     This customized Evaluator first aggregates topic prediction from the Link,
-    greedily match prediction to label and report f1 metric.
+    match each prediction to a label and report (macro) precision. Every
+    prediction is matched to one label. Each label will have either 0 or
+    multiple prediction matched. Precision for each label is calculated
+    by talking union of the prediction, i.e. true positive is defined as a
+    prediction whose label is true and any of the paired predictions is true.
+
+    This evaluator use oracle to try find best macro precision. It greedily
+    match a prediction to a label using precision.
+
     If dimension of the label is larger than the prediction dimension,
-    this Evaluator doe
+    this Evaluator does nothing.
 
     Args:
         iterator: Dataset iterator for the validation dataset. It can also be
@@ -127,7 +133,6 @@ class TopicMatchEvaluator(extension.Extension):
             preds.append(cuda.to_cpu(pred.data))
             labels.append(cuda.to_cpu(label))
 
-        results = {}
         preds = np.concatenate(preds)
         # Probability to one-hot argmax
         preds = np.eye(preds.shape[1], dtype=bool)[np.argmax(preds, axis=1)]
@@ -135,26 +140,38 @@ class TopicMatchEvaluator(extension.Extension):
         n_labels = np.max(labels)
         if n_labels > preds.shape[1]:
             return {}
-        preds_indices = set(xrange(preds.shape[1]))
-        # Greedily aggregate combinations
-        for i in xrange(n_labels):
+
+        tps_agg = {}
+        ps_agg = {}
+        for j in xrange(n_labels):
+            tps_agg[j] = 0.0
+            ps_agg[j] = 0.0
+
+        for i in xrange(preds.shape[1]):
+            # Make sure that precision is always well defined
+            ps = float(np.sum(preds[:, i]))
+            if ps == 0.:
+                continue
             best_j = None
-            best_f1 = 0.
-            labels_i = labels == i
-            for j in preds_indices:
-                # f1 is ill defined when no prediction on j is given
-                if any(preds[:, j]):
-                    f1 = metrics.f1_score(labels_i, preds[:, j])
-                    if f1 > best_f1:
-                        best_j = j
-                        best_f1 = f1
-            # best_j may NOT be defined if remaining preds are all zeros
-            if best_j is not None:
-                preds_indices.remove(best_j)
+            best_tps = 0
+            for j in xrange(n_labels):
+                tps = float(np.sum(np.logical_and(labels == j, preds[:, i])))
+                if tps > best_tps:
+                    best_tps = tps
+                    best_j = j
+            if best_j is None:
+                continue
+            tps_agg[best_j] += best_tps
+            ps_agg[best_j] += ps
+
+        results = {}
+        for j in xrange(n_labels):
             if self.label_dict is None:
-                name = 'f1_%d' % i
+                name = 'precision_%d' % j
             else:
-                name = 'f1_%s' % self.label_dict[i]
-            results[prefix + name] = best_f1
-        results[prefix + 'macro_f1'] = np.average(results.values())
-        return results
+                name = 'precision_%s' % self.label_dict[j]
+            prec = tps_agg[j] / ps_agg[j] if ps_agg[j] > 0. else 0.
+            results[prefix + name] = prec
+
+        results[prefix + 'macro_precision'] = np.average(results.values())
+        return dict(results)
