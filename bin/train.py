@@ -107,8 +107,8 @@ def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test
 
     logger.info("With labels: %s" % json.dumps(label_dict))
     # Take a snapshot for each specified epoch
-    frequency = epoch if frequency == -1 else max(1, frequency)
-    trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
+    trigger = (epoch, 'epoch') if frequency == -1 else (frequency, 'iteration')
+    trainer.extend(extensions.snapshot(), trigger=trigger)
     trainer.extend(extensions.ParameterStatistics(model, trigger=(10, 'iteration')))
 
     # Write a log of evaluation statistics for each epoch
