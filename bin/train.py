@@ -55,14 +55,15 @@ def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test
     if (beer_labels is None) != (beer_test is None):
         raise click.BadParameter(
             "Both or neither beer-labels and beer-test can be specified")
-    memory = Memory(cachedir=out, verbose=0)
 
     if beer_train is None:
         logger.info('Using 20newsgroup dataset')
+        memory = Memory(cachedir=out, verbose=1)
         w2v, vocab, train, test, topic_vectors, label_dict = \
             memory.cache(abae.dataset.prepare_20news)(word2vec, ntopics)
     else:
         logger.info('Using beer adovocate dataset.')
+        memory = Memory(cachedir=out, verbose=1, mmap_mode='r')
         w2v, vocab, train, test, topic_vectors, label_dict = \
             memory.cache(abae.dataset.prepare_beer_advocate)(
                 beer_train, beer_test, beer_labels, word2vec, ntopics)
