@@ -109,7 +109,11 @@ def run(epoch, frequency, gpu, out, word2vec, beer_train, beer_labels, beer_test
     # Take a snapshot for each specified epoch
     trigger = (epoch, 'epoch') if frequency == -1 else (frequency, 'iteration')
     trainer.extend(extensions.snapshot(), trigger=trigger)
-    trainer.extend(extensions.ParameterStatistics(model, trigger=(10, 'iteration')))
+    if gpu < 0:
+        # ParameterStatistics does not work with GPU as of chainer 2.x
+        # https://github.com/chainer/chainer/issues/3027
+        trainer.extend(extensions.ParameterStatistics(
+            model, trigger=(10, 'iteration')))
 
     # Write a log of evaluation statistics for each epoch
     trainer.extend(extensions.LogReport(trigger=(10, 'iteration')))
